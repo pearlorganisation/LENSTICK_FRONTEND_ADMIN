@@ -42,6 +42,7 @@ export default function Sidebar() {
           width={100}
           height={30}
           className="brightness-0 invert"
+          style={{ width: "auto" }}
         />
         <button
           onClick={() => setIsOpen(true)}
