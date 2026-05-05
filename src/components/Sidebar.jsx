@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "../lib/utils";
-import { useLogOutMutation } from "../services/api";
+import { useLogOutMutation } from "../services/authApi";
 import { useDispatch } from "react-redux";
 import { logOut } from "../redux/auth/authSlice";
 import { useRouter } from "next/navigation";

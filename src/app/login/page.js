@@ -16,7 +16,7 @@ import {
   useSendOtpMutation,
   useVerifyOtpMutation,
   useResendMutation,
-} from "../../services/api";
+} from "../../services/authApi";
 import { setCredentials } from "../../redux/auth/authSlice";
 
 export default function LoginPage() {
@@ -101,6 +101,7 @@ export default function LoginPage() {
           setCredentials({
             admin: userData.data.user,
             token: userData.data.tokens.accessToken,
+            refreshToken: userData.data.tokens.refreshToken, // ✅ ADD THIS
           })
         );
 

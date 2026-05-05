@@ -1,37 +1,22 @@
 import { createSlice } from "@reduxjs/toolkit";
 
-const token =
-  typeof window !== "undefined" ? localStorage.getItem("token") : null;
+const initialState = {
+  user: null,
+  isAuthenticated: false,
+};
 
 const authSlice = createSlice({
   name: "auth",
-  initialState: {
-    admin: null,
-    token: token,
-    isAuthenticated: !!token,
-  },
-
+  initialState,
   reducers: {
     setCredentials: (state, action) => {
-      console.log("action payload ", action.payload);
-      const { admin, token } = action.payload;
-      console.log("admin token in set credentails  ", admin, token);
-      state.admin = admin;
-      state.token = token;
+      console.log("set credewntia ", action.payload);
+      state.user = action.payload.admin;
       state.isAuthenticated = true;
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem("token", token);
-      }
     },
     logout: (state) => {
-      state.admin = null;
-      state.token = null;
+      state.user = null;
       state.isAuthenticated = false;
-
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("token");
-      }
     },
   },
 });
