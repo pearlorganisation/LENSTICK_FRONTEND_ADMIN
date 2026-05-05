@@ -26,7 +26,7 @@ const menuItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Products (Frames)", href: "/admin/products", icon: Glasses },
-  { name: "Categories", href: "/admin/categories", icon: Layers },
+  { name: "Categories", href: "/admin/category", icon: Layers },
   { name: "Lens Options", href: "/admin/lenses", icon: Layers },
   { name: "Customers", href: "/admin/users", icon: Users },
   { name: "Store Locations", href: "/admin/stores", icon: MapPin },
