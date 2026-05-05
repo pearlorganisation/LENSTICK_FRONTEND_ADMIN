@@ -16,7 +16,11 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "../lib/utils";
-
+import { useLogOutMutation } from "../services/api";
+import { useDispatch } from "react-redux";
+import { logOut } from "../redux/auth/authSlice";
+import { useRouter } from "next/navigation";
+import { api } from "../services/api";
 
 const menuItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -33,6 +37,19 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false); // Mobile toggle state
+
+  const [logOut, { isLoading }] = useLogOutMutation();
+  const dispatch = useDispatch();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await logOut().unwrap();
+      router.push("/login");
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
+  };
 
   return (
     <>
@@ -61,7 +78,6 @@ export default function Sidebar() {
           onClick={() => setIsOpen(false)}
         />
       )}
-
 
       {/* SIDEBAR CONTAINER */}
       <div
@@ -127,16 +143,28 @@ export default function Sidebar() {
 
         {/* USER FOOTER */}
         <div className="p-6 border-t border-white/10 bg-black/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center border-2 border-white/20 font-bold">
-              AD
+          <div className="flex items-center justify-between">
+            {/* Admin Info */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center border-2 border-white/20 font-bold">
+                AD
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold">Admin User</span>
+                <span className="text-[11px] text-blue-300/60">
+                  Administrator
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold">Admin User</span>
-              <span className="text-[11px] text-blue-300/60">
-                Administrator
-              </span>
-            </div>
+
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              disabled={isLoading}
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-300/60 hover:bg-blue-300/60 transition"
+            >
+              {isLoading ? "..." : "Logout"}
+            </button>
           </div>
         </div>
       </div>
