@@ -290,6 +290,7 @@ const ProductManagement = () => {
                         <div className="text-xs font-bold text-blue-600">
                           {variant.sku}
                         </div>
+
                         <div className="text-lg font-bold text-gray-800">
                           {variant.frameColor}
                         </div>
@@ -394,6 +395,26 @@ const ProductManagement = () => {
                         </div>
                         <div className="font-bold">
                           {variant.discountPercentage}%
+                        </div>
+                      </div>
+
+                      {/* Try On */}
+                      <div className="text-center">
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">
+                          Try On Available
+                        </div>
+                        <div className="font-bold">
+                          {variant.isTryOnAvailable ? "Yes" : "No"}
+                        </div>
+                      </div>
+
+                      {/* BOGO */}
+                      <div className="text-center">
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">
+                          Buy One Get One
+                        </div>
+                        <div className="font-bold">
+                          {variant.isBuyOneGetOne ? "Yes" : "No"}
                         </div>
                       </div>
 

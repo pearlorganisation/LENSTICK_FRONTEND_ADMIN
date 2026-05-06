@@ -11,9 +11,17 @@ import { toast } from "react-hot-toast";
 export const ProductForm = ({ onClose, initialData }) => {
   const { data: catResponse } = useGetAllCategoriesQuery();
   const categories = catResponse?.data || [];
-
   const [createProduct, { isLoading: isCreating }] = useCreateProductMutation();
   const [updateProduct, { isLoading: isUpdating }] = useUpdateProductMutation();
+
+  const generateSlug = (text) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+  };
 
   // ✅ DEFAULT SAFE STRUCTURE
   const defaultForm = {
@@ -63,9 +71,25 @@ export const ProductForm = ({ onClose, initialData }) => {
   }, [initialData]);
 
   // ✅ HANDLE INPUT
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
+    //  AUTO SLUG FROM NAME
+    if (name === "name") {
+      const slug = generateSlug(value);
+
+      console.log("generated slug ", slug);
+
+      setFormData((prev) => ({
+        ...prev,
+        name: value,
+        slug, // auto update slug
+      }));
+      return;
+    }
+
+    // nested fields
     if (name.includes(".")) {
       const [parent, child] = name.split(".");
       setFormData((prev) => ({
@@ -145,7 +169,7 @@ export const ProductForm = ({ onClose, initialData }) => {
             onChange={handleInputChange}
             placeholder="Slug"
             className="border p-2 rounded"
-            required
+            readOnly
           />
         </div>
 

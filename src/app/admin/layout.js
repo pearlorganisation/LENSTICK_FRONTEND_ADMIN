@@ -1,16 +1,29 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSelector } from "react-redux";
 import Sidebar from "../../components/Sidebar";
 
-
 export default function AdminLayout({ children }) {
+  const router = useRouter();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    console.log("token in useEffect ", token);
+
+    if (!isAuthenticated && !token) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, router]);
+
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
-      {/* Sidebar is fixed on mobile, static on desktop */}
+    <div className="flex h-screen bg-slate-50">
       <Sidebar />
 
-      {/* Main content area */}
-      <main className="flex-1 w-full overflow-x-hidden">
-        <div className="min-h-screen">{children}</div>
-      </main>
+      <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }
