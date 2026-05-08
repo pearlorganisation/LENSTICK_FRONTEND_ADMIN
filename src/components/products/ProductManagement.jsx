@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   useGetProductsQuery,
   useDeleteProductMutation,
@@ -13,26 +13,58 @@ import {
   Package,
   ChevronLeft,
   RefreshCcw,
-  Eye, // Added Eye icon
-  X, // Added X icon for modal close
+  Eye,
+  X,
+  Search,
+  Filter,
+  ChevronRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 const ProductManagement = () => {
+  // --- UI State ---
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [selectedProduct, setSelectedProduct] = useState(null); // State for View Modal
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showFilters, setShowFilters] = useState(true);
 
+  // --- Query Params State (Matches your backend Service) ---
+  const [params, setParams] = useState({
+    page: 1,
+    limit: 10,
+    search: "",
+    sort: "latest",
+    brand: "",
+    frameShape: "",
+    size: "",
+    minPrice: "",
+    maxPrice: "",
+  });
+
+  // --- API Calls ---
   const {
     data: apiResponse,
     isLoading,
-    isError,
+    isFetching,
     refetch,
-  } = useGetProductsQuery();
+  } = useGetProductsQuery(params); // Pass params to the query
 
   const [deleteProduct] = useDeleteProductMutation();
 
+  // Data extraction from your backend structure
   const products = apiResponse?.data?.products || [];
+  const filtersData = apiResponse?.data?.filters || {};
+  const pagination = {
+    currentPage: apiResponse?.data?.currentPage || 1,
+    totalPages: apiResponse?.data?.totalPages || 1,
+    totalProducts: apiResponse?.data?.totalProducts || 0,
+  };
+
+  // --- Handlers ---
+  const handleParamChange = (key, value) => {
+    setParams((prev) => ({ ...prev, [key]: value, page: 1 })); // Reset to page 1 on filter
+  };
 
   const handleEdit = (product) => {
     setEditingProduct(product);
@@ -57,156 +89,315 @@ const ProductManagement = () => {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 bg-white p-6 rounded-xl shadow-sm border-l-8 border-[#072369]">
+      {/* HEADER */}
+
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 bg-white p-6 rounded-xl shadow-sm border-l-8 border-[#072369]">
         <div>
-          <h1 className="text-2xl font-bold text-[#072369]">
-            Product Management
-          </h1>
+          <h1 className="text-2xl font-bold text-[#072369]">Product Catalog</h1>
           <p className="text-gray-500 text-sm">
-            {isFormOpen
-              ? "Fill in the details below"
-              : "View and manage your inventory"}
+            Manage {pagination.totalProducts} products in inventory
           </p>
         </div>
 
         <div className="flex gap-3 mt-4 md:mt-0">
-          {!isFormOpen ? (
-            <>
-              <button
-                onClick={() => refetch()}
-                className="p-2.5 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all"
-              >
-                <RefreshCcw
-                  size={20}
-                  className={isLoading ? "animate-spin" : ""}
-                />
-              </button>
-              <button
-                onClick={() => setIsFormOpen(true)}
-                className="flex items-center gap-2 bg-[#072369] text-white px-5 py-2.5 rounded-lg hover:bg-opacity-90 transition-all font-semibold shadow-md"
-              >
-                <Plus size={20} /> Add Product
-              </button>
-            </>
-          ) : (
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`p-2.5 rounded-lg border transition-all ${
+              showFilters
+                ? "bg-blue-50 border-blue-200 text-blue-600"
+                : "bg-white text-gray-600"
+            }`}
+          >
+            <Filter size={20} />
+          </button>
+          {!isFormOpen && (
             <button
-              onClick={closeForm}
-              className="flex items-center gap-2 text-gray-600 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200 transition-all"
+              onClick={() => setIsFormOpen(true)}
+              className="flex items-center gap-2 bg-[#072369] text-white px-5 py-2.5 rounded-lg hover:bg-opacity-90 transition-all font-semibold shadow-md"
             >
-              <ChevronLeft size={20} /> Back to Catalog
+              <Plus size={20} /> Add Product
             </button>
           )}
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
       {isFormOpen ? (
         <div className="max-w-5xl mx-auto">
+          <button
+            onClick={closeForm}
+            className="mb-4 flex items-center gap-2 text-gray-600 hover:text-black"
+          >
+            <ChevronLeft size={20} /> Back to List
+          </button>
           <ProductForm onClose={closeForm} initialData={editingProduct} />
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-[#072369] text-white">
-                <tr>
-                  <th className="p-4 font-semibold text-sm uppercase tracking-wider">
-                    Product Detail
-                  </th>
-                  <th className="p-4 font-semibold text-sm uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="p-4 font-semibold text-sm uppercase tracking-wider text-center">
-                    Stock
-                  </th>
-                  <th className="p-4 font-semibold text-sm uppercase tracking-wider">
-                    Price Range
-                  </th>
-                  <th className="p-4 font-semibold text-sm uppercase tracking-wider text-center">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan="5" className="p-20 text-center text-gray-500">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : (
-                  products.map((product) => {
-                    const prices = product.variants?.map((v) => v.price) || [0];
-                    const totalStock =
-                      product.variants?.reduce(
-                        (acc, curr) => acc + curr.stock,
-                        0
-                      ) || 0;
-                    const minPrice = Math.min(...prices);
-                    const maxPrice = Math.max(...prices);
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* SIDEBAR FILTERS (Only visible if showFilters is true) */}
+          {showFilters && (
+            <div className="w-full lg:w-64 space-y-6">
+              {/* Search */}
+              <div className="bg-white p-4 rounded-xl shadow-sm border">
+                <label className="text-[10px] font-bold uppercase text-gray-400 block mb-2 tracking-widest">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={16}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search name..."
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    value={params.search}
+                    onChange={(e) =>
+                      handleParamChange("search", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
 
-                    return (
-                      <tr
-                        key={product._id}
-                        className="hover:bg-blue-50/40 transition-colors group"
-                      >
-                        <td className="p-4">
-                          <div className="flex items-center gap-4">
-                            <div>
+              {/* Brands Filter */}
+              <div className="bg-white p-4 rounded-xl shadow-sm border">
+                <label className="text-[10px] font-bold uppercase text-gray-400 block mb-2 tracking-widest">
+                  Brand
+                </label>
+                <select
+                  className="w-full p-2 bg-gray-50 border rounded-lg text-sm"
+                  value={params.brand}
+                  onChange={(e) => handleParamChange("brand", e.target.value)}
+                >
+                  <option value="">All Brands</option>
+                  {filtersData.brands?.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b._id} ({b.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Shape Filter */}
+              <div className="bg-white p-4 rounded-xl shadow-sm border">
+                <label className="text-[10px] font-bold uppercase text-gray-400 block mb-2 tracking-widest">
+                  Frame Shape
+                </label>
+                <div className="space-y-1">
+                  <button
+                    onClick={() => handleParamChange("frameShape", "")}
+                    className={`w-full text-left px-3 py-1.5 rounded-md text-sm ${
+                      params.frameShape === ""
+                        ? "bg-blue-600 text-white"
+                        : "hover:bg-gray-100"
+                    }`}
+                  >
+                    All Shapes
+                  </button>
+                  {filtersData.frameShapes?.map((s) => (
+                    <button
+                      key={s._id}
+                      onClick={() => handleParamChange("frameShape", s._id)}
+                      className={`w-full text-left px-3 py-1.5 rounded-md text-sm flex justify-between ${
+                        params.frameShape === s._id
+                          ? "bg-blue-600 text-white"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      {s._id}{" "}
+                      <span className="opacity-50 text-xs">{s.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reset Button */}
+              <button
+                onClick={() =>
+                  setParams({
+                    page: 1,
+                    limit: 10,
+                    search: "",
+                    sort: "latest",
+                    brand: "",
+                    frameShape: "",
+                    size: "",
+                  })
+                }
+                className="w-full py-2 text-xs font-bold text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Clear All Filters
+              </button>
+            </div>
+          )}
+
+          {/* DATA TABLE SECTION */}
+          <div className="flex-1 space-y-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Table Controls */}
+              <div className="p-4 border-b flex justify-between items-center bg-gray-50/50">
+                <div className="text-sm text-gray-500 font-medium">
+                  Showing{" "}
+                  <span className="text-black font-bold">
+                    {products.length}
+                  </span>{" "}
+                  products
+                </div>
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown size={16} className="text-gray-400" />
+                  <select
+                    className="text-sm bg-transparent font-bold outline-none cursor-pointer"
+                    value={params.sort}
+                    onChange={(e) => handleParamChange("sort", e.target.value)}
+                  >
+                    <option value="latest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="priceLowToHigh">Price: Low to High</option>
+                    <option value="priceHighToLow">Price: High to Low</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-[#072369] text-white">
+                    <tr>
+                      <th className="p-4 text-[11px] uppercase tracking-widest">
+                        Product
+                      </th>
+                      <th className="p-4 text-[11px] uppercase tracking-widest text-center">
+                        Stock
+                      </th>
+                      <th className="p-4 text-[11px] uppercase tracking-widest">
+                        Price Info
+                      </th>
+                      <th className="p-4 text-[11px] uppercase tracking-widest text-center">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {isFetching ? (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          className="p-20 text-center animate-pulse text-blue-600 font-bold"
+                        >
+                          Fetching Data...
+                        </td>
+                      </tr>
+                    ) : products.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          className="p-20 text-center text-gray-400"
+                        >
+                          No products found matching your filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      products.map((product) => {
+                        const prices = product.variants?.map(
+                          (v) => v.price
+                        ) || [0];
+                        const totalStock =
+                          product.variants?.reduce(
+                            (acc, curr) => acc + curr.stock,
+                            0
+                          ) || 0;
+                        return (
+                          <tr
+                            key={product._id}
+                            className="hover:bg-blue-50/30 transition-colors"
+                          >
+                            <td className="p-4">
                               <div className="font-bold text-gray-800">
                                 {product?.name}
                               </div>
-                              <div className="text-[11px] text-gray-500 uppercase">
-                                {product?.brand}
+                              <div className="text-[10px] text-blue-600 font-bold uppercase">
+                                {product?.brand} • {product?.frameShape}
                               </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4 uppercase text-xs font-semibold">
-                          {product?.category || "N/A"}
-                        </td>
-                        <td className="p-4 text-center text-sm font-bold text-gray-600">
-                          {totalStock}
-                        </td>
-                        <td className="p-4 font-bold text-gray-700">
-                          ₹{minPrice} - ₹{maxPrice}
-                        </td>
-                        <td className="p-4 text-center">
-                          <div className="flex justify-center gap-2">
-                            {/* VIEW BUTTON */}
-                            <button
-                              onClick={() => setSelectedProduct(product)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg border border-transparent hover:border-green-200"
-                              title="View Details"
-                            >
-                              <Eye size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleEdit(product)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(product._id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                            </td>
+                            <td className="p-4 text-center font-mono text-sm">
+                              {totalStock}
+                            </td>
+                            <td className="p-4">
+                              <div className="text-xs text-gray-400 font-bold uppercase">
+                                Starting from
+                              </div>
+                              <div className="font-black text-[#072369]">
+                                ₹{Math.min(...prices)}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-center gap-1">
+                                <button
+                                  onClick={() => setSelectedProduct(product)}
+                                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleEdit(product)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                >
+                                  <Edit size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(product._id)}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* PAGINATION FOOTER */}
+              <div className="p-4 border-t flex items-center justify-between bg-gray-50">
+                <button
+                  disabled={params.page === 1}
+                  onClick={() => handleParamChange("page", params.page - 1)}
+                  className="p-2 rounded-lg border bg-white disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+
+                <div className="flex gap-2">
+                  {[...Array(pagination.totalPages)].map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleParamChange("page", i + 1)}
+                      className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${
+                        params.page === i + 1
+                          ? "bg-[#072369] text-white"
+                          : "bg-white border hover:border-blue-300"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  disabled={params.page === pagination.totalPages}
+                  onClick={() => handleParamChange("page", params.page + 1)}
+                  className="p-2 rounded-lg border bg-white disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* PRODUCT DETAIL MODAL */}
+      {/* VIEW MODAL (Keep your existing one, it works well) */}
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
