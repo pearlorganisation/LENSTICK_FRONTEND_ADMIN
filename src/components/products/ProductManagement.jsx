@@ -66,7 +66,10 @@ const ProductManagement = () => {
     setParams((prev) => ({ ...prev, [key]: value, page: 1 })); // Reset to page 1 on filter
   };
 
+  console.log("params ", params);
+
   const handleEdit = (product) => {
+    console.log("product data ", product);
     setEditingProduct(product);
     setIsFormOpen(true);
   };
@@ -383,7 +386,6 @@ const ProductManagement = () => {
                     </button>
                   ))}
                 </div>
-
                 <button
                   disabled={params.page === pagination.totalPages}
                   onClick={() => handleParamChange("page", params.page + 1)}
@@ -391,6 +393,14 @@ const ProductManagement = () => {
                 >
                   <ChevronRight size={18} />
                 </button>
+
+                {/* <button
+                  disabled={params.page === pagination.
+                  onClick={() => handleParamChange("page", params.page + 1)}
+                  className="p-2 rounded-lg border bg-white disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                >
+                  <ChevronRight size={18} />
+                </button> */}
               </div>
             </div>
           </div>
@@ -436,30 +446,30 @@ const ProductManagement = () => {
                     {selectedProduct.frameShape || "N/A"}
                   </p>
                 </div>
-                <div>
+                {/* <div>
                   <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
                     Frame Type
                   </label>
                   <p className="font-semibold text-gray-800">
                     {selectedProduct.frameType || "Standard"}
                   </p>
-                </div>
+                </div> */}
                 <div>
                   <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
                     Frame Type
                   </label>
                   <p className="font-semibold text-gray-800">
-                    {selectedProduct?.subCategory || "N/A"}
+                    {selectedProduct?.frameType || "N/A"}
                   </p>
                 </div>
-                <div>
+                {/* <div>
                   <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
                     Created At
                   </label>
                   <p className="font-semibold text-gray-800">
                     {new Date(selectedProduct.createdAt).toLocaleDateString()}
                   </p>
-                </div>
+                </div> */}
               </div>
 
               {/* Variants Section */}

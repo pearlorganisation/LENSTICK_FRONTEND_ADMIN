@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   useCreateProductMutation,
   useUpdateProductMutation,
@@ -13,6 +13,8 @@ import {
   Layout,
   Settings,
   Layers,
+  HelpCircle,
+  Upload,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -21,84 +23,9 @@ export const ProductForm = ({ onClose, initialData }) => {
   const categories = catResponse?.data || [];
   const [createProduct, { isLoading: isCreating }] = useCreateProductMutation();
   const [updateProduct, { isLoading: isUpdating }] = useUpdateProductMutation();
-  const organizedCategories = [];
-  const parents = categories.filter((cat) => !cat.parentCategory);
-  const children = categories.filter((cat) => cat.parentCategory);
-  // const organizedCategories = [];
 
-  const parentCategories = categories.filter((cat) => cat.level === 0);
-
-  parentCategories.forEach((parent) => {
-    // Add the parent to the list
-    organizedCategories.push({
-      _id: parent._id,
-      name: parent.name,
-      level: 0,
-      parentId: null,
-    });
-
-    // 2. Find all sub-categories that belong to this parent
-    const subCategories = categories.filter((cat) => {
-      // Check if parentCategory exists and its ID matches
-      const pid = cat.parentCategory?._id || cat.parentCategory;
-      return cat.level === 1 && pid === parent._id;
-    });
-
-    subCategories.forEach((sub) => {
-      organizedCategories.push({
-        _id: sub._id,
-        name: sub.name,
-        level: 1,
-        parentId: parent._id, // We keep track of the parent ID
-      });
-    });
-  });
-
-  parents.forEach((parent) => {
-    // Add parent
-    organizedCategories.push({ ...parent, isChild: false });
-
-    // Find and add its children immediately after
-    const subCats = children.filter(
-      (child) =>
-        (child.parentCategory?._id || child.parentCategory) === parent._id
-    );
-
-    subCats.forEach((sub) => {
-      organizedCategories.push({ ...sub, isChild: true });
-    });
-  });
-
-  // Update the change handler to detect if a sub-category was picked
-  const handleCategoryChange = (e) => {
-    const selectedId = e.target.value;
-    const selectedObj = categories.find((c) => c._id === selectedId);
-
-    if (selectedObj?.parentCategory) {
-      // If user selected a sub-category
-      setFormData((prev) => ({
-        ...prev,
-        category: selectedObj.parentCategory._id || selectedObj.parentCategory,
-        subCategory: selectedObj._id,
-      }));
-    } else {
-      // If user selected a main category
-      setFormData((prev) => ({
-        ...prev,
-        category: selectedId,
-        subCategory: null,
-      }));
-    }
-  };
-
-  const generateSlug = (text) => {
-    return text
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-");
-  };
+  const fileInputRefs = useRef([]);
+  const [categoryPath, setCategoryPath] = useState([]);
 
   const defaultForm = {
     name: "",
@@ -115,6 +42,7 @@ export const ProductForm = ({ onClose, initialData }) => {
     frameShape: "",
     frameMaterial: "",
     frameType: "",
+    totalStock: 0,
     frameDimensions: {
       lensWidth: "",
       bridgeWidth: "",
@@ -125,9 +53,9 @@ export const ProductForm = ({ onClose, initialData }) => {
     isBestSeller: false,
     isNewArrival: false,
     isActive: true,
+    questionsAndAnswers: [],
     variants: [
       {
-        sku: "",
         frameColor: "",
         size: "MEDIUM",
         ageGroup: "Adult",
@@ -144,24 +72,77 @@ export const ProductForm = ({ onClose, initialData }) => {
 
   const [formData, setFormData] = useState(defaultForm);
 
+  // --- CATEGORY LOGIC ---
+
+  // Rebuild the path (breadcrumbs) if we are editing an existing product
+  useEffect(() => {
+    if (initialData && categories.length > 0) {
+      const buildPath = (currentId, path = []) => {
+        const cat = categories.find((c) => c._id === currentId);
+        if (!cat) return path;
+        const parentId = cat.parentCategory?._id || cat.parentCategory;
+        if (parentId) {
+          return buildPath(parentId, [currentId, ...path]);
+        }
+        return [currentId, ...path];
+      };
+
+      const targetId =
+        initialData.subCategory?._id ||
+        initialData.subCategory ||
+        initialData.category?._id ||
+        initialData.category;
+      if (targetId) setCategoryPath(buildPath(targetId));
+    }
+  }, [initialData, categories]);
+
+  const handleCategoryLevelChange = (index, selectedId) => {
+    // 1. Cut the path at the level being changed
+    let newPath = categoryPath.slice(0, index);
+
+    // 2. Add the new selection if it exists
+    if (selectedId) {
+      newPath.push(selectedId);
+    }
+
+    setCategoryPath(newPath);
+
+    // 3. Update Form State
+    setFormData((prev) => ({
+      ...prev,
+      category: newPath[0] || "", // Root category
+      subCategory: newPath.length > 1 ? newPath[newPath.length - 1] : null, // Deepest selected level
+    }));
+  };
+
+  // --- GENERAL HANDLERS ---
+
   useEffect(() => {
     if (initialData) {
       setFormData({
         ...defaultForm,
         ...initialData,
         category: initialData.category?._id || initialData.category || "",
+        subCategory:
+          initialData.subCategory?._id || initialData.subCategory || null,
         gender: initialData.gender || [],
-        variants: initialData.variants || defaultForm.variants,
-        frameDimensions:
-          initialData.frameDimensions || defaultForm.frameDimensions,
+        questionsAndAnswers: initialData.questionsAndAnswers || [],
       });
     }
   }, [initialData]);
 
+  const generateSlug = (text) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     const val = type === "checkbox" ? checked : value;
-
     if (name === "name") {
       setFormData((prev) => ({
         ...prev,
@@ -170,7 +151,6 @@ export const ProductForm = ({ onClose, initialData }) => {
       }));
       return;
     }
-
     if (name.includes(".")) {
       const [parent, child] = name.split(".");
       setFormData((prev) => ({
@@ -195,6 +175,42 @@ export const ProductForm = ({ onClose, initialData }) => {
     setFormData((prev) => ({ ...prev, variants: newVariants }));
   };
 
+  const handleFileChange = (vIndex, e) => {
+    const files = Array.from(e.target.files);
+    const newImages = files.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+    const updatedVariants = [...formData.variants];
+    updatedVariants[vIndex].images = [
+      ...updatedVariants[vIndex].images,
+      ...newImages,
+    ];
+    setFormData((prev) => ({ ...prev, variants: updatedVariants }));
+  };
+
+  const removeImage = (vIndex, imgIndex) => {
+    const updatedVariants = [...formData.variants];
+    updatedVariants[vIndex].images = updatedVariants[vIndex].images.filter(
+      (_, i) => i !== imgIndex
+    );
+    setFormData((prev) => ({ ...prev, variants: updatedVariants }));
+  };
+
+  const addQA = () =>
+    setFormData((p) => ({
+      ...p,
+      questionsAndAnswers: [
+        ...p.questionsAndAnswers,
+        { question: "", answer: "" },
+      ],
+    }));
+  const updateQA = (index, field, value) => {
+    const updated = [...formData.questionsAndAnswers];
+    updated[index][field] = value;
+    setFormData((p) => ({ ...p, questionsAndAnswers: updated }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -212,8 +228,7 @@ export const ProductForm = ({ onClose, initialData }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-xl border-t-4 border-[#072369] max-h-[95vh] overflow-hidden flex flex-col w-full max-w-5xl mx-auto">
-      {/* Header */}
+    <div className="bg-white rounded-lg shadow-xl border-t-4 border-[#072369] max-h-[95vh] overflow-hidden flex flex-col w-full max-w-6xl mx-auto">
       <div className="flex justify-between items-center p-6 border-b">
         <h2 className="text-2xl font-bold text-[#072369]">
           {initialData ? "Edit Product" : "Add New Product"}
@@ -235,6 +250,7 @@ export const ProductForm = ({ onClose, initialData }) => {
               Basic Information
             </h3>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               name="name"
@@ -245,33 +261,96 @@ export const ProductForm = ({ onClose, initialData }) => {
               required
             />
             <input
-              name="slug"
-              value={formData.slug}
-              onChange={handleInputChange}
-              placeholder="Slug"
-              className="border p-3 rounded-lg w-full bg-gray-50"
-              readOnly
-            />
-            <input
               name="brand"
               value={formData.brand}
               onChange={handleInputChange}
               placeholder="Brand Name"
               className="border p-3 rounded-lg w-full"
             />
-            <input
-              name="productCollection"
-              value={formData.productCollection}
-              onChange={handleInputChange}
-              placeholder="Collection (e.g. Summer 2024)"
-              className="border p-3 rounded-lg w-full"
-            />
+
+            {/* CATEGORY SELECTORS */}
+            <div className="md:col-span-2 space-y-3 bg-gray-50 p-4 rounded-xl border">
+              <label className="text-sm font-bold text-[#072369] uppercase flex items-center gap-2">
+                <Layers size={16} /> Category
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Level 0: Main Category */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-gray-500 font-bold ml-1">
+                    MAIN CATEGORY
+                  </span>
+                  <select
+                    value={categoryPath[0] || ""}
+                    onChange={(e) =>
+                      handleCategoryLevelChange(0, e.target.value)
+                    }
+                    className="border p-3 rounded-lg w-full bg-white shadow-sm"
+                    required
+                  >
+                    <option value="">Select Category</option>
+                    {categories
+                      .filter((c) => !c.parentCategory || c.level === 0)
+                      .map((cat) => (
+                        <option key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Level 1+: Dynamic Subcategories */}
+                {categoryPath.map((selectedId, index) => {
+                  const children = categories.filter(
+                    (c) =>
+                      (c.parentCategory?._id || c.parentCategory) === selectedId
+                  );
+                  if (children.length === 0) return null;
+
+                  return (
+                    <div
+                      key={selectedId}
+                      className="space-y-1 animate-in fade-in slide-in-from-left-2"
+                    >
+                      <span className="text-[10px] text-gray-500 font-bold ml-1">
+                        SUB-CATEGORY LEVEL {index + 1}
+                      </span>
+                      <select
+                        value={categoryPath[index + 1] || ""}
+                        onChange={(e) =>
+                          handleCategoryLevelChange(index + 1, e.target.value)
+                        }
+                        className="border p-3 rounded-lg w-full bg-white shadow-sm"
+                      >
+                        <option value="">Select Sub-category</option>
+                        {children.map((sub) => (
+                          <option key={sub._id} value={sub._id}>
+                            {sub.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <input
+                name="slug"
+                value={formData.slug}
+                readOnly
+                className="border p-3 rounded-lg w-full bg-gray-50 text-gray-500 text-sm"
+                placeholder="Slug (Auto-generated)"
+              />
+            </div>
           </div>
+
           <textarea
             name="shortDescription"
             value={formData.shortDescription}
             onChange={handleInputChange}
-            placeholder="Short Description (appears on list cards)"
+            placeholder="Short Description"
             className="border p-3 rounded-lg w-full"
             rows="2"
           />
@@ -279,79 +358,36 @@ export const ProductForm = ({ onClose, initialData }) => {
             name="description"
             value={formData.description}
             onChange={handleInputChange}
-            placeholder="Full Product Description"
+            placeholder="Full Description"
             className="border p-3 rounded-lg w-full"
-            rows="4"
-          />
-          <textarea
-            name="returnPolicy"
-            value={formData.returnPolicy}
-            onChange={handleInputChange}
-            placeholder="Return Policy Specific to this product"
-            className="border p-3 rounded-lg w-full"
-            rows="2"
+            rows="3"
           />
         </div>
 
-        {/* SECTION 2: CATEGORY & ATTRIBUTES */}
+        {/* ... Rest of your sections (Specs, Variants, FAQ) remain the same ... */}
+        {/* I am omitting them here for brevity, but keep your existing code for those sections */}
+
+        {/* SECTION 2: SPECS & INVENTORY */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-[#072369] border-b pb-1">
               <Layout size={20} />{" "}
-              {/* <h3 className="font-semibold uppercase text-sm tracking-wider">
-                Categorization
-              </h3>
-            </div>
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleInputChange}
-              className="border p-3 rounded-lg w-full"
-              required
-            >
-              <option value="">Select Category</option>
-              {categories.map((cat) => (
-                <option key={cat._id} value={cat._id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select> */}
               <h3 className="font-semibold uppercase text-sm tracking-wider">
-                Categorization
+                Specifications
               </h3>
             </div>
-
-            <select
-              name="category"
-              // Value logic: if subCategory exists, show that, otherwise show main category
-              value={formData.subCategory || formData.category}
-              onChange={handleCategoryChange}
-              className="border p-3 rounded-lg w-full"
-              required
-            >
-              <option value="">Select Category</option>
-              {organizedCategories.map((cat) => (
-                <option
-                  key={cat._id}
-                  value={cat._id}
-                  className={cat.isChild ? "bg-gray-50" : "font-bold"}
-                >
-                  {cat.isChild ? `— ${cat.name}` : cat.name.toUpperCase()}
-                </option>
-              ))}
-            </select>
             <div className="flex gap-6 py-2">
               {["Men", "Women", "Kids"].map((g) => (
                 <label
                   key={g}
-                  className="flex items-center gap-2 cursor-pointer"
+                  className="flex items-center gap-2 cursor-pointer font-medium"
                 >
                   <input
                     type="checkbox"
                     checked={formData.gender?.includes(g)}
                     onChange={() => handleGenderChange(g)}
                     className="w-4 h-4"
-                  />
+                  />{" "}
                   {g}
                 </label>
               ))}
@@ -392,9 +428,24 @@ export const ProductForm = ({ onClose, initialData }) => {
             <div className="flex items-center gap-2 text-[#072369] border-b pb-1">
               <Settings size={20} />{" "}
               <h3 className="font-semibold uppercase text-sm tracking-wider">
-                Dimensions & Flags
+                Inventory & Dimensions
               </h3>
             </div>
+
+            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+              <label className="text-[10px] font-bold text-gray-500 uppercase px-1">
+                Total Product Inventory
+              </label>
+              <input
+                type="number"
+                name="totalStock"
+                value={formData.totalStock}
+                onChange={handleInputChange}
+                placeholder="e.g. 100"
+                className="w-full border p-2 rounded-md font-bold text-[#072369] mt-1"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               {["lensWidth", "bridgeWidth", "templeLength", "lensHeight"].map(
                 (dim) => (
@@ -405,48 +456,28 @@ export const ProductForm = ({ onClose, initialData }) => {
                     value={formData.frameDimensions?.[dim] || ""}
                     onChange={handleInputChange}
                     placeholder={dim.replace(/([A-Z])/g, " $1")}
-                    className="border p-3 rounded-lg"
+                    className="border p-3 rounded-lg text-sm"
                   />
                 )
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <label className="flex items-center gap-2 font-medium">
-                <input
-                  type="checkbox"
-                  name="isFeatured"
-                  checked={formData.isFeatured}
-                  onChange={handleInputChange}
-                />{" "}
-                Featured
-              </label>
-              <label className="flex items-center gap-2 font-medium">
-                <input
-                  type="checkbox"
-                  name="isBestSeller"
-                  checked={formData.isBestSeller}
-                  onChange={handleInputChange}
-                />{" "}
-                Best Seller
-              </label>
-              <label className="flex items-center gap-2 font-medium">
-                <input
-                  type="checkbox"
-                  name="isNewArrival"
-                  checked={formData.isNewArrival}
-                  onChange={handleInputChange}
-                />{" "}
-                New Arrival
-              </label>
-              <label className="flex items-center gap-2 font-medium">
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={formData.isActive}
-                  onChange={handleInputChange}
-                />{" "}
-                Active
-              </label>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              {["isFeatured", "isBestSeller", "isNewArrival", "isActive"].map(
+                (flag) => (
+                  <label
+                    key={flag}
+                    className="flex items-center gap-2 font-medium text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      name={flag}
+                      checked={formData[flag]}
+                      onChange={handleInputChange}
+                    />{" "}
+                    {flag.replace("is", "")}
+                  </label>
+                )
+              )}
             </div>
           </div>
         </div>
@@ -457,7 +488,7 @@ export const ProductForm = ({ onClose, initialData }) => {
             <div className="flex items-center gap-2">
               <Layers size={20} />{" "}
               <h3 className="font-semibold uppercase text-sm tracking-wider">
-                Product Variants (Colors/Sizes)
+                Variants
               </h3>
             </div>
             <button
@@ -465,7 +496,22 @@ export const ProductForm = ({ onClose, initialData }) => {
               onClick={() =>
                 setFormData((p) => ({
                   ...p,
-                  variants: [...p.variants, defaultForm.variants[0]],
+                  // variants: [...p.variants, defaultForm.variants[0]],
+                  variants: [
+                    ...p.variants,
+                    {
+                      frameColor: "",
+                      size: "MEDIUM",
+                      ageGroup: "Adult",
+                      price: 0,
+                      salePrice: 0,
+                      discountPercentage: 0,
+                      stock: 0,
+                      isTryOnAvailable: false,
+                      isBuyOneGetOne: false,
+                      images: [],
+                    },
+                  ],
                 }))
               }
               className="flex items-center gap-1 text-sm bg-blue-50 px-3 py-1 rounded-full hover:bg-blue-100 transition-colors"
@@ -477,29 +523,75 @@ export const ProductForm = ({ onClose, initialData }) => {
           {formData.variants.map((v, i) => (
             <div
               key={i}
-              className="relative p-6 border rounded-2xl bg-gray-50 grid grid-cols-1 md:grid-cols-6 gap-4"
+              className="relative p-6 border rounded-2xl bg-gray-50 space-y-4"
             >
-              <div className="md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-gray-400">
-                  Color
-                </label>
+              <button
+                type="button"
+                onClick={() =>
+                  setFormData((p) => ({
+                    ...p,
+                    variants: p.variants.filter((_, idx) => idx !== i),
+                  }))
+                }
+                className="absolute top-4 right-4 text-red-500 hover:bg-red-50 p-1 rounded-full"
+              >
+                <Trash2 size={20} />
+              </button>
+
+              {/* <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4"> */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 <input
+                  placeholder="Color"
                   value={v.frameColor}
                   onChange={(e) =>
                     updateVariant(i, "frameColor", e.target.value)
                   }
-                  placeholder="e.g. Matte Black"
-                  className="w-full border p-2 rounded"
+                  className="border p-2 rounded text-sm"
                 />
-              </div>
-              <div className="md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-gray-400">
-                  Size
-                </label>
+                <input
+                  type="number"
+                  placeholder="Price"
+                  value={v.price}
+                  onChange={(e) =>
+                    updateVariant(i, "price", Number(e.target.value))
+                  }
+                  className="border p-2 rounded text-sm"
+                />
+                <input
+                  type="number"
+                  placeholder="Sale Price"
+                  value={v.salePrice}
+                  onChange={(e) =>
+                    updateVariant(i, "salePrice", Number(e.target.value))
+                  }
+                  className="border p-2 rounded text-sm bg-green-50"
+                />
+                <input
+                  type="number"
+                  placeholder="Stock"
+                  value={v.stock}
+                  onChange={(e) =>
+                    updateVariant(i, "stock", Number(e.target.value))
+                  }
+                  className="border p-2 rounded text-sm"
+                />
+                <input
+                  type="number"
+                  placeholder="Disc %"
+                  value={v.discountPercentage}
+                  onChange={(e) =>
+                    updateVariant(
+                      i,
+                      "discountPercentage",
+                      Number(e.target.value)
+                    )
+                  }
+                  className="border p-2 rounded text-sm"
+                />
                 <select
                   value={v.size}
                   onChange={(e) => updateVariant(i, "size", e.target.value)}
-                  className="w-full border p-2 rounded"
+                  className="border p-2 rounded text-sm"
                 >
                   {[
                     "EXTRA SMALL",
@@ -513,103 +605,141 @@ export const ProductForm = ({ onClose, initialData }) => {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-gray-400">
-                  Price
-                </label>
-                <input
-                  type="number"
-                  value={v.price}
-                  onChange={(e) =>
-                    updateVariant(i, "price", Number(e.target.value))
-                  }
-                  className="w-full border p-2 rounded"
-                />
-              </div>
-              <div className="md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-gray-400">
-                  Sale Price
-                </label>
-                <input
-                  type="number"
-                  value={v.salePrice}
-                  onChange={(e) =>
-                    updateVariant(i, "salePrice", Number(e.target.value))
-                  }
-                  className="w-full border p-2 rounded"
-                />
-              </div>
-              <div className="md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-gray-400">
-                  Stock
-                </label>
-                <input
-                  type="number"
-                  value={v.stock}
-                  onChange={(e) =>
-                    updateVariant(i, "stock", Number(e.target.value))
-                  }
-                  className="w-full border p-2 rounded"
-                />
-              </div>
-              <div className="flex flex-col gap-2 justify-center">
-                <label className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={v.isTryOnAvailable}
-                    onChange={(e) =>
-                      updateVariant(i, "isTryOnAvailable", e.target.checked)
-                    }
-                  />{" "}
-                  Try-On
-                </label>
-                <label className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={v.isBuyOneGetOne}
-                    onChange={(e) =>
-                      updateVariant(i, "isBuyOneGetOne", e.target.checked)
-                    }
-                  />{" "}
-                  BOGO
-                </label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] flex items-center gap-1 font-bold">
+                    <input
+                      type="checkbox"
+                      checked={v.isTryOnAvailable}
+                      onChange={(e) =>
+                        updateVariant(i, "isTryOnAvailable", e.target.checked)
+                      }
+                    />{" "}
+                    TryOn
+                  </label>
+                  <label className="text-[9px] flex items-center gap-1 font-bold">
+                    <input
+                      type="checkbox"
+                      checked={v.isBuyOneGetOne}
+                      onChange={(e) =>
+                        updateVariant(i, "isBuyOneGetOne", e.target.checked)
+                      }
+                    />{" "}
+                    BOGO
+                  </label>
+                </div>
               </div>
 
-              {formData.variants.length > 1 && (
+              <div className="flex flex-wrap gap-3">
+                {v.images.map((img, imgIdx) => (
+                  <div
+                    key={imgIdx}
+                    className="relative w-20 h-20 group border rounded-lg overflow-hidden"
+                  >
+                    <img
+                      src={img.url}
+                      className="w-full h-full object-cover"
+                      alt=""
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i, imgIdx)}
+                      className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 text-white"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  ref={(el) => (fileInputRefs.current[i] = el)}
+                  onChange={(e) => handleFileChange(i, e)}
+                />
                 <button
                   type="button"
-                  onClick={() =>
-                    setFormData((p) => ({
-                      ...p,
-                      variants: p.variants.filter((_, idx) => idx !== i),
-                    }))
-                  }
-                  className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg"
+                  onClick={() => fileInputRefs.current[i].click()}
+                  className="w-20 h-20 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-400 hover:text-[#072369]"
                 >
-                  <X size={14} />
+                  <Upload size={20} />
+                  <span className="text-[10px] font-bold">Upload</span>
                 </button>
-              )}
+              </div>
             </div>
           ))}
         </div>
 
-        {/* FOOTER */}
+        {/* SECTION 4: FAQ */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b pb-1 text-[#072369]">
+            <div className="flex items-center gap-2">
+              <HelpCircle size={20} />{" "}
+              <h3 className="font-semibold uppercase text-sm tracking-wider">
+                FAQ
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={addQA}
+              className="text-xs bg-gray-100 px-3 py-1 rounded-full"
+            >
+              + Add FAQ
+            </button>
+          </div>
+          {formData.questionsAndAnswers.map((qa, index) => (
+            <div
+              key={index}
+              className="flex gap-2 bg-gray-50 p-4 rounded-xl border"
+            >
+              <div className="flex-1 space-y-2">
+                <input
+                  placeholder="Question"
+                  value={qa.question}
+                  onChange={(e) => updateQA(index, "question", e.target.value)}
+                  className="w-full border p-2 rounded text-sm font-bold"
+                />
+                <textarea
+                  placeholder="Answer"
+                  value={qa.answer}
+                  onChange={(e) => updateQA(index, "answer", e.target.value)}
+                  className="w-full border p-2 rounded text-sm"
+                  rows="2"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setFormData((p) => ({
+                    ...p,
+                    questionsAndAnswers: p.questionsAndAnswers.filter(
+                      (_, i) => i !== index
+                    ),
+                  }))
+                }
+                className="text-red-500"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          ))}
+          <div />
+        </div>
         <div className="flex justify-end gap-4 border-t pt-6">
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-3 rounded-xl border font-semibold hover:bg-gray-50"
+            className="px-6 py-3 border rounded-xl"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isCreating || isUpdating}
-            className="px-10 py-3 rounded-xl bg-[#072369] text-white font-bold shadow-lg shadow-blue-900/20 hover:bg-[#0a2e8a] transition-all disabled:opacity-50"
+            className="px-10 py-3 bg-[#072369] text-white rounded-xl font-bold"
           >
             {isCreating || isUpdating
-              ? "Saving Product..."
+              ? "Saving..."
               : initialData
               ? "Update Product"
               : "Publish Product"}

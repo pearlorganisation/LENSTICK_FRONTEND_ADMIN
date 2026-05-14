@@ -5,7 +5,11 @@ export const productApi = api.injectEndpoints({
 
   endpoints: (builder) => ({
     getProducts: builder.query({
-      query: () => "/product/all",
+      // Accept 'params' as an argument (e.g., { category: 'men', page: 1 })
+      query: (params) => ({
+        url: "/product/all",
+        params: params, // RTK Query automatically turns this into ?key=value
+      }),
 
       providesTags: (result) =>
         result?.data?.products
