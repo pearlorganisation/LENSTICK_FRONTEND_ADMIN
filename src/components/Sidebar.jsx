@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Tags,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useLogOutMutation } from "../services/authApi";
@@ -26,6 +27,7 @@ import { useRouter } from "next/navigation";
 
 const menuItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Attribute", href: "/admin/attribute", icon: Tags },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Products", href: "/admin/products", icon: Glasses },
   { name: "Categories", href: "/admin/category", icon: Layers },
